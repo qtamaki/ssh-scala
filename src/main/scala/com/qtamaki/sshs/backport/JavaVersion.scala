@@ -16,10 +16,10 @@
 package com.qtamaki.sshs.backport
 
 object JavaVersion {
-    def isJava7OrEarlier():Boolean = {
-        val property = System.getProperty("java.specification.version")
-        val diff = java.lang.Float.parseFloat(property) - 1.7f
+  def isJava7OrEarlier(): Boolean = {
+    val property = System.getProperty("java.specification.version")
+    val diff = java.lang.Float.parseFloat(property) - 1.7f
 
-        diff < 0.01f
-    }
+    diff < 0.01f
+  }
 }

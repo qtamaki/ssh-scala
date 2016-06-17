@@ -25,26 +25,26 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 
 object IOUtils {
-    private val log:Logger = LoggerFactory.getLogger(IOUtils.getClass.getName);
-  
-    val UTF8:Charset = Charset.forName("UTF-8");
+  private val log: Logger = LoggerFactory.getLogger(IOUtils.getClass.getName);
 
-    def closeQuietly(closeables:Closeable*) {
-        closeables.foreach { c:Closeable =>
-            try {
-                if (c != null)
-                    c.close();
-            } catch {
-              case logged:IOException =>
-                log.warn(s"Error closing ${c} - ${logged}");
-            }
-        }
-    }
+  val UTF8: Charset = Charset.forName("UTF-8");
 
-    def readFully(stream:InputStream):ByteArrayOutputStream = {
-        val baos = new ByteArrayOutputStream();
-        new StreamCopier(stream, baos).copy();
-        return baos;
+  def closeQuietly(closeables: Closeable*) {
+    closeables.foreach { c: Closeable =>
+      try {
+        if (c != null)
+          c.close();
+      } catch {
+        case logged: IOException =>
+          log.warn(s"Error closing ${c} - ${logged}");
+      }
     }
+  }
+
+  def readFully(stream: InputStream): ByteArrayOutputStream = {
+    val baos = new ByteArrayOutputStream();
+    new StreamCopier(stream, baos).copy();
+    return baos;
+  }
 
 }

@@ -1,3 +1,18 @@
+/*
+ * Copyright (C)2009 - SSHJ Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.qtamaki.sshs.common
 
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
@@ -26,220 +41,215 @@ import java.util.Arrays;
 import com.qtamaki.sshs.secg.SecgUtils
 import com.qtamaki.sshs.signature.Ed25519PublicKey
 
-sealed abstract class KeyType(var sType:String) {
+sealed abstract class KeyType(var sType: String) {
 
-    def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey
+  def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey
 
-    def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer)
+  def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer)
 
-    protected def isMyType(key:Key):Boolean
+  protected def isMyType(key: Key): Boolean
 
-    override def toString():String = {
-        return sType;
-    }
+  override def toString(): String = {
+    return sType;
+  }
 
- 
 }
 
 object KeyType {
-    /** SSH identifier for RSA keys */
-    val RSA = new KeyType("ssh-rsa") {
-        override def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey = {
-            val (e, n) = try {
-                (buf.readMPInt(), buf.readMPInt())
-            } catch {
-              case be:Buffer.BufferException =>
-                throw new GeneralSecurityException(be);
-            }
-            val keyFactory = SecurityUtils.getKeyFactory("RSA");
-            return keyFactory.generatePublic(new RSAPublicKeySpec(n, e));
-        }
-
-        override def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer) {
-            val rsaKey = pk.asInstanceOf[RSAPublicKey];
-            buf.putString(sType)
-            .putMPInt(rsaKey.getPublicExponent()) // e
-            .putMPInt(rsaKey.getModulus()); // n
-        }
-
-        override protected def isMyType(key:Key):Boolean = {
-            return (key.isInstanceOf[RSAPublicKey] || key.isInstanceOf[RSAPrivateKey]);
-        }
-
+  /** SSH identifier for RSA keys */
+  val RSA = new KeyType("ssh-rsa") {
+    override def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey = {
+      val (e, n) = try {
+        (buf.readMPInt(), buf.readMPInt())
+      } catch {
+        case be: Buffer.BufferException =>
+          throw new GeneralSecurityException(be);
+      }
+      val keyFactory = SecurityUtils.getKeyFactory("RSA");
+      return keyFactory.generatePublic(new RSAPublicKeySpec(n, e));
     }
 
-    /** SSH identifier for DSA keys */
-    val DSA = new KeyType("ssh-dss") {
-        override def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey = {
-            val (p,q,g,y) = try {
-                (buf.readMPInt(),
-                buf.readMPInt(),
-                buf.readMPInt(),
-                buf.readMPInt())
-            } catch {
-              case be:Buffer.BufferException =>
-                throw new GeneralSecurityException(be);
-            }
-            val keyFactory = SecurityUtils.getKeyFactory("DSA");
-            return keyFactory.generatePublic(new DSAPublicKeySpec(y, p, q, g));
-        }
-
-        override def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer) {
-            pk match {
-              case dsaKey:DSAPublicKey =>
-                buf.putString(sType)
-                        .putMPInt(dsaKey.getParams().getP()) // p
-                        .putMPInt(dsaKey.getParams().getQ()) // q
-                        .putMPInt(dsaKey.getParams().getG()) // g
-                        .putMPInt(dsaKey.getY()); // y
-            }
-        }
-
-        override protected def isMyType(key:Key):Boolean = {
-            return (key.isInstanceOf[DSAPublicKey] || key.isInstanceOf[DSAPrivateKey]);
-        }
-
+    override def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer) {
+      val rsaKey = pk.asInstanceOf[RSAPublicKey];
+      buf.putString(sType)
+        .putMPInt(rsaKey.getPublicExponent()) // e
+        .putMPInt(rsaKey.getModulus()); // n
     }
 
-    /** SSH identifier for ECDSA keys */
-    val ECDSA = new KeyType("ecdsa-sha2-nistp256") {
-        private val log:Logger = LoggerFactory.getLogger(getClass());
-
-        override def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey = {
-            try {
-                // final String algo = buf.readString();  it has been already read
-                val curveName = buf.readString();
-                val keyLen = buf.readUInt32AsInt();
-                val x04 = buf.readByte();  // it must be 0x04, but don't think we need that check
-                val x = new Array[Byte]((keyLen - 1) / 2);
-                val y = new Array[Byte]((keyLen - 1) / 2);
-                buf.readRawBytes(x);
-                buf.readRawBytes(y);
-                if(log.isDebugEnabled()) {
-                    log.debug("Key algo: %s, Key curve: %s, Key Len: %s, 0x04: %s\nx: %s\ny: %s".format(
-                            stype,
-                            curveName,
-                            keyLen,
-                            x04,
-                            Arrays.toString(x),
-                            Arrays.toString(y))
-                    );
-                }
-
-                if (!NISTP_CURVE.equals(curveName)) {
-                    throw new GeneralSecurityException(String.format("Unknown curve %s", curveName));
-                }
-
-                val bigX = new BigInteger(1, x);
-                val bigY = new BigInteger(1, y);
-
-                val ecParams = NISTNamedCurves.getByName("p-256");
-                val pPublicPoint = ecParams.getCurve().createPoint(bigX, bigY);
-                val spec = new ECParameterSpec(ecParams.getCurve(),
-                        ecParams.getG(), ecParams.getN());
-                val publicSpec = new ECPublicKeySpec(pPublicPoint, spec);
-
-                val keyFactory = KeyFactory.getInstance("ECDSA");
-                return keyFactory.generatePublic(publicSpec);
-            } catch {
-              case ex:Exception => 
-                throw new GeneralSecurityException(ex);
-            }
-        }
-
-
-        override def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer) {
-            pk match {
-              case ecdsa:ECPublicKey =>
-            val encoded = SecgUtils.getEncoded(ecdsa.getW(), ecdsa.getParams().getCurve());
-
-            buf.putString(sType)
-                .putString(NISTP_CURVE)
-                .putBytes(encoded);
-            }
-        }
-
-        override protected def isMyType(key:Key):Boolean = {
-            return ("ECDSA".equals(key.getAlgorithm()));
-        }
+    override protected def isMyType(key: Key): Boolean = {
+      return (key.isInstanceOf[RSAPublicKey] || key.isInstanceOf[RSAPrivateKey]);
     }
 
-    val ED25519 = new KeyType("ssh-ed25519") {
-        private val logger:Logger = LoggerFactory.getLogger(KeyType.getClass);
+  }
 
-        override def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey = {
-            try {
-                val keyLen = buf.readUInt32AsInt();
-                val p = new Array[Byte](keyLen);
-                buf.readRawBytes(p);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Key algo: %s, Key curve: 25519, Key Len: %s\np: %s".format(
-                            stype,
-                            keyLen,
-                            Arrays.toString(p))
-                    );
-                }
-
-                val ed25519 = EdDSANamedCurveTable.getByName("ed25519-sha-512");
-                val point = ed25519.getCurve().createPoint(p, true);
-                val publicSpec = new EdDSAPublicKeySpec(point, ed25519);
-                return new Ed25519PublicKey(publicSpec);
-
-            } catch {
-              case be:Buffer.BufferException =>
-                throw new SSHRuntimeException(be);
-            }
-        }
-
-        override def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer) {
-            pk match {
-              case key:EdDSAPublicKey =>
-                buf.putString(sType).putBytes(key.getAbyte());
-            }
-        }
-
-        override protected def isMyType(key:Key):Boolean = {
-            return "EdDSA".equals(key.getAlgorithm());
-        }
+  /** SSH identifier for DSA keys */
+  val DSA = new KeyType("ssh-dss") {
+    override def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey = {
+      val (p, q, g, y) = try {
+        (buf.readMPInt(),
+          buf.readMPInt(),
+          buf.readMPInt(),
+          buf.readMPInt())
+      } catch {
+        case be: Buffer.BufferException =>
+          throw new GeneralSecurityException(be);
+      }
+      val keyFactory = SecurityUtils.getKeyFactory("DSA");
+      return keyFactory.generatePublic(new DSAPublicKeySpec(y, p, q, g));
     }
 
-    /** Unrecognized */
-    val UNKNOWN = new KeyType("unknown") {
-        override def readPubKeyFromBuffer(stype:String, buf:Buffer):PublicKey = {
-            throw new UnsupportedOperationException("Don't know how to decode key:" + stype);
-        }
-
-        override def putPubKeyIntoBuffer(pk:PublicKey, buf:Buffer) {
-            throw new UnsupportedOperationException("Don't know how to encode key: " + pk);
-        }
-
-        override protected def isMyType(key:Key):Boolean = {
-            return false;
-        }
-    };
-
-    private val NISTP_CURVE = "nistp256";
-    
-    val values = Array(
-       RSA,
-       DSA,
-       ECDSA,
-       ED25519,
-       UNKNOWN
-   )
-
-    def  fromKey(key:Key):KeyType = {
-        for (kt <- values)
-            if (kt.isMyType((key)))
-                return kt;
-        return UNKNOWN;
+    override def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer) {
+      pk match {
+        case dsaKey: DSAPublicKey =>
+          buf.putString(sType)
+            .putMPInt(dsaKey.getParams().getP()) // p
+            .putMPInt(dsaKey.getParams().getQ()) // q
+            .putMPInt(dsaKey.getParams().getG()) // g
+            .putMPInt(dsaKey.getY()); // y
+      }
     }
-    
-    def fromString(sType:String):KeyType = {
-        for (kt <- values)
-            if (kt.sType.equals(sType))
-                return kt;
-        return UNKNOWN;
+
+    override protected def isMyType(key: Key): Boolean = {
+      return (key.isInstanceOf[DSAPublicKey] || key.isInstanceOf[DSAPrivateKey]);
     }
- 
+
+  }
+
+  /** SSH identifier for ECDSA keys */
+  val ECDSA = new KeyType("ecdsa-sha2-nistp256") {
+    private val log: Logger = LoggerFactory.getLogger(getClass());
+
+    override def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey = {
+      try {
+        // final String algo = buf.readString();  it has been already read
+        val curveName = buf.readString();
+        val keyLen = buf.readUInt32AsInt();
+        val x04 = buf.readByte(); // it must be 0x04, but don't think we need that check
+        val x = new Array[Byte]((keyLen - 1) / 2);
+        val y = new Array[Byte]((keyLen - 1) / 2);
+        buf.readRawBytes(x);
+        buf.readRawBytes(y);
+        if (log.isDebugEnabled()) {
+          log.debug("Key algo: %s, Key curve: %s, Key Len: %s, 0x04: %s\nx: %s\ny: %s".format(
+            stype,
+            curveName,
+            keyLen,
+            x04,
+            Arrays.toString(x),
+            Arrays.toString(y)));
+        }
+
+        if (!NISTP_CURVE.equals(curveName)) {
+          throw new GeneralSecurityException(String.format("Unknown curve %s", curveName));
+        }
+
+        val bigX = new BigInteger(1, x);
+        val bigY = new BigInteger(1, y);
+
+        val ecParams = NISTNamedCurves.getByName("p-256");
+        val pPublicPoint = ecParams.getCurve().createPoint(bigX, bigY);
+        val spec = new ECParameterSpec(ecParams.getCurve(),
+          ecParams.getG(), ecParams.getN());
+        val publicSpec = new ECPublicKeySpec(pPublicPoint, spec);
+
+        val keyFactory = KeyFactory.getInstance("ECDSA");
+        return keyFactory.generatePublic(publicSpec);
+      } catch {
+        case ex: Exception =>
+          throw new GeneralSecurityException(ex);
+      }
+    }
+
+    override def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer) {
+      pk match {
+        case ecdsa: ECPublicKey =>
+          val encoded = SecgUtils.getEncoded(ecdsa.getW(), ecdsa.getParams().getCurve());
+
+          buf.putString(sType)
+            .putString(NISTP_CURVE)
+            .putBytes(encoded);
+      }
+    }
+
+    override protected def isMyType(key: Key): Boolean = {
+      return ("ECDSA".equals(key.getAlgorithm()));
+    }
+  }
+
+  val ED25519 = new KeyType("ssh-ed25519") {
+    private val logger: Logger = LoggerFactory.getLogger(KeyType.getClass);
+
+    override def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey = {
+      try {
+        val keyLen = buf.readUInt32AsInt();
+        val p = new Array[Byte](keyLen);
+        buf.readRawBytes(p);
+        if (logger.isDebugEnabled()) {
+          logger.debug("Key algo: %s, Key curve: 25519, Key Len: %s\np: %s".format(
+            stype,
+            keyLen,
+            Arrays.toString(p)));
+        }
+
+        val ed25519 = EdDSANamedCurveTable.getByName("ed25519-sha-512");
+        val point = ed25519.getCurve().createPoint(p, true);
+        val publicSpec = new EdDSAPublicKeySpec(point, ed25519);
+        return new Ed25519PublicKey(publicSpec);
+
+      } catch {
+        case be: Buffer.BufferException =>
+          throw new SSHRuntimeException(be);
+      }
+    }
+
+    override def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer) {
+      pk match {
+        case key: EdDSAPublicKey =>
+          buf.putString(sType).putBytes(key.getAbyte());
+      }
+    }
+
+    override protected def isMyType(key: Key): Boolean = {
+      return "EdDSA".equals(key.getAlgorithm());
+    }
+  }
+
+  /** Unrecognized */
+  val UNKNOWN = new KeyType("unknown") {
+    override def readPubKeyFromBuffer(stype: String, buf: Buffer): PublicKey = {
+      throw new UnsupportedOperationException("Don't know how to decode key:" + stype);
+    }
+
+    override def putPubKeyIntoBuffer(pk: PublicKey, buf: Buffer) {
+      throw new UnsupportedOperationException("Don't know how to encode key: " + pk);
+    }
+
+    override protected def isMyType(key: Key): Boolean = {
+      return false;
+    }
+  };
+
+  private val NISTP_CURVE = "nistp256";
+
+  val values = Array(
+    RSA,
+    DSA,
+    ECDSA,
+    ED25519,
+    UNKNOWN)
+
+  def fromKey(key: Key): KeyType = {
+    for (kt <- values)
+      if (kt.isMyType((key)))
+        return kt;
+    return UNKNOWN;
+  }
+
+  def fromString(sType: String): KeyType = {
+    for (kt <- values)
+      if (kt.sType.equals(sType))
+        return kt;
+    return UNKNOWN;
+  }
+
 }

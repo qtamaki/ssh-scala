@@ -20,51 +20,51 @@ import java.security.spec.ECPoint;
 import java.security.spec.EllipticCurve;
 import java.util.Arrays;
 
-import com.qtamaki.sshs.common.SSHRuntimeException
+import com.qtamaki.sshs.common
 
 object SecgUtils {
-    /**
-     * SECG 2.3.4 Octet String to ECPoint
-     */
-    def getDecoded(M:Array[Byte], curve:EllipticCurve):ECPoint = {
-        val elementSize = getElementSize(curve);
-        if (M.length != 2 * elementSize + 1 || M(0) != 0x04) {
-            throw new SSHRuntimeException("Invalid 'f' for Elliptic Curve " + curve.toString());
-        }
-        val xBytes = new Array[Byte](elementSize);
-        val yBytes = new Array[Byte](elementSize);
-        System.arraycopy(M, 1, xBytes, 0, elementSize);
-        System.arraycopy(M, 1 + elementSize, yBytes, 0, elementSize);
-        return new ECPoint(new BigInteger(1, xBytes), new BigInteger(1, yBytes));
+  /**
+   * SECG 2.3.4 Octet String to ECPoint
+   */
+  def getDecoded(M: Array[Byte], curve: EllipticCurve): ECPoint = {
+    val elementSize = getElementSize(curve);
+    if (M.length != 2 * elementSize + 1 || M(0) != 0x04) {
+      throw new common.SSHRuntimeException("Invalid 'f' for Elliptic Curve " + curve.toString());
+    }
+    val xBytes = new Array[Byte](elementSize);
+    val yBytes = new Array[Byte](elementSize);
+    System.arraycopy(M, 1, xBytes, 0, elementSize);
+    System.arraycopy(M, 1 + elementSize, yBytes, 0, elementSize);
+    return new ECPoint(new BigInteger(1, xBytes), new BigInteger(1, yBytes));
+  }
+
+  /**
+   * SECG 2.3.3 ECPoint to Octet String
+   */
+  def getEncoded(point: ECPoint, curve: EllipticCurve): Array[Byte] = {
+    val elementSize = getElementSize(curve);
+    val M = new Array[Byte](2 * elementSize + 1);
+    M(0) = 0x04;
+
+    val xBytes = stripLeadingZeroes(point.getAffineX().toByteArray());
+    val yBytes = stripLeadingZeroes(point.getAffineY().toByteArray());
+    System.arraycopy(xBytes, 0, M, 1 + elementSize - xBytes.length, xBytes.length);
+    System.arraycopy(yBytes, 0, M, 1 + 2 * elementSize - yBytes.length, yBytes.length);
+    return M;
+  }
+
+  private def stripLeadingZeroes(bytes: Array[Byte]): Array[Byte] = {
+    var start = 0;
+    while (bytes(start) == 0x0) {
+      start += 1
     }
 
-    /**
-     * SECG 2.3.3 ECPoint to Octet String
-     */
-    def getEncoded(point:ECPoint, curve:EllipticCurve):Array[Byte] = {
-        val elementSize = getElementSize(curve);
-        val M = new Array[Byte](2 * elementSize + 1);
-        M(0) = 0x04;
+    return Arrays.copyOfRange(bytes, start, bytes.length);
+  }
 
-        val xBytes = stripLeadingZeroes(point.getAffineX().toByteArray());
-        val yBytes = stripLeadingZeroes(point.getAffineY().toByteArray());
-        System.arraycopy(xBytes, 0, M, 1 + elementSize - xBytes.length, xBytes.length);
-        System.arraycopy(yBytes, 0, M, 1 + 2 * elementSize - yBytes.length, yBytes.length);
-        return M;
-    }
-
-    private def stripLeadingZeroes(bytes:Array[Byte]):Array[Byte] = {
-        var start = 0;
-        while (bytes(start) == 0x0) {
-            start += 1
-        }
-
-        return Arrays.copyOfRange(bytes, start, bytes.length);
-    }
-
-    private def getElementSize(curve:EllipticCurve):Int = {
-        val fieldSize = curve.getField().getFieldSize();
-        return (fieldSize + 7) / 8;
-    }
+  private def getElementSize(curve: EllipticCurve): Int = {
+    val fieldSize = curve.getField().getFieldSize();
+    return (fieldSize + 7) / 8;
+  }
 
 }

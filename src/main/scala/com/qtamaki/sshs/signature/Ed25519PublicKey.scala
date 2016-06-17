@@ -23,20 +23,20 @@ import net.schmizz.sshj.common.SSHRuntimeException
 
 import java.util.Arrays
 
-case class Ed25519PublicKey(spec:EdDSAPublicKeySpec) extends EdDSAPublicKey(spec) {
-    val ed25519 = EdDSANamedCurveTable.getByName("ed25519-sha-512");
-    if (!spec.getParams().getCurve().equals(ed25519.getCurve())) {
-        throw new SSHRuntimeException("Cannot create Ed25519 Public Key from wrong spec");
-    }
-    
-    override def equals(other:Any):Boolean = {
-      other match {
-        case otherKey:Ed25519PublicKey =>
-          Arrays.equals(getAbyte(), otherKey.getAbyte());
-        case _ => false 
-      }
-    }
+case class Ed25519PublicKey(spec: EdDSAPublicKeySpec) extends EdDSAPublicKey(spec) {
+  val ed25519 = EdDSANamedCurveTable.getByName("ed25519-sha-512");
+  if (!spec.getParams().getCurve().equals(ed25519.getCurve())) {
+    throw new SSHRuntimeException("Cannot create Ed25519 Public Key from wrong spec");
+  }
 
-    override def hashCode() = getA().hashCode()
+  override def equals(other: Any): Boolean = {
+    other match {
+      case otherKey: Ed25519PublicKey =>
+        Arrays.equals(getAbyte(), otherKey.getAbyte());
+      case _ => false
+    }
+  }
+
+  override def hashCode() = getA().hashCode()
 
 }
