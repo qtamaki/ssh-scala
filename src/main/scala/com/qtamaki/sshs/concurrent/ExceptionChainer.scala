@@ -33,7 +33,7 @@ package com.qtamaki.sshs.concurrent
  * @param <Z> Throwable type
  */
 trait ExceptionChainer[Z <: Throwable] {
-  
+
   def chain(t: Throwable): Z
-  
+
 }
