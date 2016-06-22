@@ -45,14 +45,14 @@ object Buffer {
     def this(from: Buffer) = {
       this(from._wpos - from._rpos)
       _wpos = from._wpos - from._rpos
-      System.arraycopy(from.data, from._rpos, data, 0, _wpos);
+      System.arraycopy(from._data, from._rpos, _data, 0, _wpos);
     }
 
     def this(b: Array[Byte]) = {
       this(0)
-      this.data = data
+      this._data = _data
       _rpos = 0;
-      _wpos = data.length
+      _wpos = _data.length
     }
 
   }
@@ -61,9 +61,11 @@ object Buffer {
 abstract class Buffer(size: Int) {
   import Buffer._
 
-  protected var data: Array[Byte] = null
+  protected var _data: Array[Byte] = new Array[Byte](size)
   protected var _rpos: Int = 0
   protected var _wpos: Int = 0
+  
+  def data = _data
 
   /** @see #DEFAULT_SIZE */
   def this() {
@@ -73,27 +75,17 @@ abstract class Buffer(size: Int) {
   def this(from: Buffer) {
     this(from._wpos - from._rpos)
     _wpos = from._wpos - from._rpos
-    System.arraycopy(from.data, from._rpos, data, 0, _wpos);
+    System.arraycopy(from._data, from._rpos, _data, 0, _wpos);
   }
 
-  def this(data: Array[Byte]) {
+  def this(_data: Array[Byte]) {
     this(0)
-    this.data = data
+    this._data = _data
     _rpos = 0;
-    _wpos = data.length
+    _wpos = _data.length
   }
 
-  //    public Buffer(int size) {
-  //        this(new byte[getNextPowerOf2(size)], false);
-  //    }
-  //
-  //    private def this(data: Array[Byte], read:Boolean) {
-  //        this.data = data;
-  //        rpos = 0;
-  //        wpos = read ? data.length : 0;
-  //    }
-
-  def array(): Array[Byte] = data
+  def array(): Array[Byte] = _data
 
   def available(): Int = wpos - rpos
 
@@ -122,11 +114,11 @@ abstract class Buffer(size: Int) {
   }
 
   def ensureCapacity(capacity: Int) {
-    if (data.length - wpos < capacity) {
+    if (_data.length - wpos < capacity) {
       val cw = wpos + capacity;
       val tmp = new Array[Byte](Buffer.getNextPowerOf2(cw))
-      System.arraycopy(data, 0, tmp, 0, data.length);
-      data = tmp;
+      System.arraycopy(_data, 0, tmp, 0, _data.length);
+      _data = tmp;
     }
   }
 
@@ -134,7 +126,7 @@ abstract class Buffer(size: Int) {
   def compact() {
     System.err.println("COMPACTING");
     if (available() > 0)
-      System.arraycopy(data, rpos, data, 0, wpos - rpos)
+      System.arraycopy(_data, rpos, _data, 0, wpos - rpos)
     _wpos = _wpos - _rpos
     _rpos = 0
   }
@@ -143,7 +135,7 @@ abstract class Buffer(size: Int) {
     val len = available()
     if (len > 0) {
       val b = new Array[Byte](len)
-      System.arraycopy(data, rpos, b, 0, len);
+      System.arraycopy(_data, rpos, b, 0, len);
       return b;
     } else
       return new Array[Byte](0)
@@ -175,7 +167,7 @@ abstract class Buffer(size: Int) {
    */
   def readByte(): Byte = {
     ensureAvailable(1)
-    val d = data(rpos)
+    val d = _data(rpos)
     _rpos += 1
     d
   }
@@ -189,7 +181,7 @@ abstract class Buffer(size: Int) {
    */
   def putByte(b: Byte): this.type = {
     ensureCapacity(1);
-    data(wpos) = b
+    _data(wpos) = b
     _wpos += 1
     return this
   }
@@ -237,7 +229,7 @@ abstract class Buffer(size: Int) {
 
   def readRawBytes(buf: Array[Byte], off: Int, len: Int) {
     ensureAvailable(len);
-    System.arraycopy(data, rpos, buf, off, len);
+    System.arraycopy(_data, rpos, buf, off, len);
     _rpos += len;
   }
 
@@ -247,7 +239,7 @@ abstract class Buffer(size: Int) {
 
   def putRawBytes(d: Array[Byte], off: Int, len: Int): this.type = {
     ensureCapacity(len);
-    System.arraycopy(d, off, data, wpos, len);
+    System.arraycopy(d, off, _data, wpos, len);
     _wpos += len;
     this
   }
@@ -263,7 +255,7 @@ abstract class Buffer(size: Int) {
     if (buffer != null) {
       val r = buffer.available();
       ensureCapacity(r);
-      System.arraycopy(buffer.data, buffer.rpos, data, wpos, r);
+      System.arraycopy(buffer._data, buffer.rpos, _data, wpos, r);
       _wpos += r;
     }
     return this
@@ -275,10 +267,10 @@ abstract class Buffer(size: Int) {
 
   def readUInt32(): Long = {
     ensureAvailable(4);
-    val x = data(rpos) << 24 & 0xff000000L |
-      data(rpos + 1) << 16 & 0x00ff0000L |
-      data(rpos + 2) << 8 & 0x0000ff00L |
-      data(rpos + 3) & 0x000000ffL
+    val x = _data(rpos) << 24 & 0xff000000L |
+      _data(rpos + 1) << 16 & 0x00ff0000L |
+      _data(rpos + 2) << 8 & 0x0000ff00L |
+      _data(rpos + 3) & 0x000000ffL
     _rpos += 4
     x
   }
@@ -294,10 +286,10 @@ abstract class Buffer(size: Int) {
     ensureCapacity(4);
     if (uint32 < 0 || uint32 > 0xffffffffL)
       throw new RuntimeException("Invalid value: " + uint32);
-    data(wpos) = (uint32 >> 24).toByte
-    data(wpos + 1) = (uint32 >> 16).toByte
-    data(wpos + 2) = (uint32 >> 8).toByte
-    data(wpos + 3) = uint32.toByte
+    _data(wpos) = (uint32 >> 24).toByte
+    _data(wpos + 1) = (uint32 >> 16).toByte
+    _data(wpos + 2) = (uint32 >> 8).toByte
+    _data(wpos + 3) = uint32.toByte
     _wpos += 4
     this
   }
@@ -327,14 +319,14 @@ abstract class Buffer(size: Int) {
   def putUInt64(uint64: Long): this.type = {
     if (uint64 < 0)
       throw new RuntimeException("Invalid value: " + uint64);
-    data(wpos) = (uint64 >> 56).toByte
-    data(wpos + 1) = (uint64 >> 48).toByte
-    data(wpos + 2) = (uint64 >> 40).toByte
-    data(wpos + 3) = (uint64 >> 32).toByte
-    data(wpos + 4) = (uint64 >> 24).toByte
-    data(wpos + 5) = (uint64 >> 16).toByte
-    data(wpos + 6) = (uint64 >> 8).toByte
-    data(wpos + 7) = uint64.toByte
+    _data(wpos) = (uint64 >> 56).toByte
+    _data(wpos + 1) = (uint64 >> 48).toByte
+    _data(wpos + 2) = (uint64 >> 40).toByte
+    _data(wpos + 3) = (uint64 >> 32).toByte
+    _data(wpos + 4) = (uint64 >> 24).toByte
+    _data(wpos + 5) = (uint64 >> 16).toByte
+    _data(wpos + 6) = (uint64 >> 8).toByte
+    _data(wpos + 7) = uint64.toByte
     _wpos += 8
     this
   }
@@ -351,7 +343,7 @@ abstract class Buffer(size: Int) {
     ensureAvailable(len)
 
     val s = try {
-      new String(data, rpos, len, "UTF-8")
+      new String(_data, rpos, len, "UTF-8")
     } catch {
       case e: UnsupportedEncodingException =>
         throw new SSHRuntimeException(e)
@@ -396,7 +388,7 @@ abstract class Buffer(size: Int) {
     putUInt32(str.length);
     ensureCapacity(str.length);
     str.foreach { c: Char =>
-      data(wpos) = c.toByte
+      _data(wpos) = c.toByte
       _wpos += 1
     }
     Arrays.fill(str, ' ');
@@ -433,7 +425,7 @@ abstract class Buffer(size: Int) {
   }
 
   override def toString(): String = {
-    return "Buffer [rpos=" + rpos + ", wpos=" + wpos + ", size=" + data.length + "]";
+    return "Buffer [rpos=" + rpos + ", wpos=" + wpos + ", size=" + _data.length + "]";
   }
 
 }

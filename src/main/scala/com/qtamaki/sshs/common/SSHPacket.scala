@@ -11,7 +11,7 @@ final class SSHPacket(size: Int)
 
   def this(data: Array[Byte]) = {
     this(0)
-    this.data = data
+    this._data = data
     _rpos = 0;
     _wpos = data.length
   }
@@ -31,7 +31,7 @@ final class SSHPacket(size: Int)
 
   def this(p:SSHPacket) = {
     this(0)
-    this.data = Arrays.copyOf(p.data, p.wpos);
+    this._data = Arrays.copyOf(p._data, p.wpos);
     this._rpos = p.rpos;
     this._wpos = p.wpos;
   }

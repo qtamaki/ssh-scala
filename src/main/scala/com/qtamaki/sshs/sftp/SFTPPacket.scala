@@ -2,24 +2,23 @@ package com.qtamaki.sshs.sftp
 
 import com.qtamaki.sshs.common.Buffer
 
-class SFTPPacket extends Buffer(0) {
+class SFTPPacket(size:Int) extends Buffer(size) {
 
-    def this(buf:Buffer) = {
-      this(from._wpos - from._rpos)
-      _wpos = from._wpos - from._rpos
-      System.arraycopy(from.data, from._rpos, data, 0, _wpos);
+    def this(from:Buffer) = {
+      this(from.wpos - from.rpos)
+      _wpos = from.wpos - from.rpos
+      System.arraycopy(from.data, from.rpos, data, 0, _wpos);
     }
 
-    public SFTPPacket(PacketType pt) {
-        super();
+    def this(pt:PacketType) = {
+        this(Buffer.DEFAULT_SIZE)
         putByte(pt.toByte());
     }
 
-    public FileAttributes readFileAttributes()
-            throws SFTPException {
-        final FileAttributes.Builder builder = new FileAttributes.Builder();
+    def readFileAttributes():FileAttributes = {
+        val builder = new FileAttributes.Builder();
         try {
-            final int mask = readUInt32AsInt();
+            val mask = readUInt32AsInt();
             if (FileAttributes.Flag.SIZE.isSet(mask))
                 builder.withSize(readUInt64());
             if (FileAttributes.Flag.UIDGID.isSet(mask))
@@ -29,11 +28,13 @@ class SFTPPacket extends Buffer(0) {
             if (FileAttributes.Flag.ACMODTIME.isSet(mask))
                 builder.withAtimeMtime(readUInt32AsInt(), readUInt32AsInt());
             if (FileAttributes.Flag.EXTENDED.isSet(mask)) {
-                final int extCount = readUInt32AsInt();
-                for (int i = 0; i < extCount; i++)
-                    builder.withExtended(readString(), readString());
+                val extCount = readUInt32AsInt();
+                (0 until extCount).foreach { i =>
+                  builder.withExtended(readString(), readString())
+                }
             }
-        } catch (BufferException be) {
+        } catch {
+          case be:Buffer.BufferException =>
             throw new SFTPException(be);
         }
         return builder.build();
