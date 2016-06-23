@@ -32,7 +32,7 @@ case class FileMode(mask: Int) {
 }
 
 sealed abstract class FileType(val perms: Int*) {
-  val v = Oct(perms)
+  val v = Oct(perms:_*)
   def toMask = v
   
 }

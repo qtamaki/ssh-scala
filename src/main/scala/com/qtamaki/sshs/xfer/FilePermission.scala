@@ -1,16 +1,17 @@
 package com.qtamaki.sshs.xfer
 
-abstract class FilePermission(val seq: Int*) {
-  val v = FilePermission.oct2dec(seq)
-  def this(perms: FilePermission*) = {
-    this(perms.foldLeft(0)((a, p) => a | p.v))
-  }
+import com.qtamaki.sshs.common.Oct
 
+abstract class FilePermission(val seq: Int*) {
+  val v = Oct(seq:_*)
+  
   def isIn(mask: Int) = (mask & v) == v
 }
 
 object FilePermission {
-  def oct2dec(seq: Seq[Int]) = seq.foldLeft(0)((a, o) => a * 8 + o)
+  def or(perms: FilePermission*) = {
+    perms.foldLeft(0)((a, p) => a | p.v)
+  }
   /** read permission, owner */
   object USR_R extends FilePermission(4, 0, 0)
   /** write permission, owner */
@@ -37,11 +38,11 @@ object FilePermission {
   object STICKY extends FilePermission(1, 0, 0, 0)
   // Composite:
   /** read, write, execute/search by user */
-  object USR_RWX extends FilePermission(USR_R, USR_W, USR_X)
+  object USR_RWX extends FilePermission(or(USR_R, USR_W, USR_X))
   /** read, write, execute/search by group */
-  object GRP_RWX extends FilePermission(GRP_R, GRP_W, GRP_X)
+  object GRP_RWX extends FilePermission(or(GRP_R, GRP_W, GRP_X))
   /** read, write, execute/search by other */
-  object OTH_RWX extends FilePermission(OTH_R, OTH_W, OTH_X)
+  object OTH_RWX extends FilePermission(or(OTH_R, OTH_W, OTH_X))
 
   val values = Array(
     USR_R,

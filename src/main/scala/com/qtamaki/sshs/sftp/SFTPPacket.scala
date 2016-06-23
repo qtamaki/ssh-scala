@@ -40,21 +40,20 @@ class SFTPPacket(size:Int) extends Buffer(size) {
         return builder.build();
     }
 
-    public PacketType readType()
-            throws SFTPException {
+    def readType():PacketType = {
         try {
             return PacketType.fromByte(readByte());
-        } catch (BufferException be) {
+        } catch {
+          case be:Buffer.BufferException =>
             throw new SFTPException(be);
         }
     }
 
-    public T putFileAttributes(FileAttributes fa) {
+    def putFileAttributes(fa:FileAttributes):this.type = {
         return putRawBytes(fa.toBytes());
     }
 
-    public T putType(PacketType type) {
-        return putByte(type.toByte());
+    def putType(ptype:PacketType):this.type = {
+        return putByte(ptype.toByte());
     }
-
 }
